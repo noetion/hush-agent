@@ -1,0 +1,70 @@
+{
+  "name": "hush-agent",
+  "version": "0.4.1",
+  "description": "A quiet desktop companion for coding agents",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "package": "electron-builder --publish never",
+    "build:mac-helper": "node scripts/build-mac-helper.cjs"
+  },
+  "build": {
+    "appId": "dev.hush.agent",
+    "productName": "Hush",
+    "compression": "normal",
+    "asarUnpack": [
+      "node_modules/@openai/**/*",
+      "node_modules/@anthropic-ai/**/*",
+      "src/dictation.ps1",
+      "src/dictation-linux.cjs",
+      "src/dictation-macos",
+      "src/dictation-macos.swift"
+    ],
+    "files": [
+      "src/**/*",
+      "bin/**/*",
+      "package.json",
+      "test/electron-check.cjs",
+      "test/task-check.cjs",
+      "test/shared-check.cjs"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "src/assets/hush.ico"
+    },
+    "directories": {
+      "output": "dist/${version}"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "src/assets/hush.png",
+      "category": "public.app-category.developer-tools",
+      "identity": null,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Hush uses the microphone only while you hold the dictate button, to turn what you say into a draft reply.",
+        "NSSpeechRecognitionUsageDescription": "Hush uses on-device speech recognition to turn dictation into a draft reply."
+      }
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "src/assets/hush.png",
+      "category": "Development",
+      "executableName": "hush"
+    },
+    "beforePack": "scripts/before-pack.cjs"
+  },
+  "devDependencies": {
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.263",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@openai/codex": "^0.153.4"
+  }
+}

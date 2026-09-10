@@ -1,0 +1,3 @@
+// Explicit local demonstration. No model or provider is involved.
+const {HushClient}=require('./client.cjs');
+(async()=>{const client=await new HushClient().connect('Demo · local echo','Try a quick reply');await client.event('done','This is a local demo. Send a reply to check the round trip without using a model.');console.log('Demo connected. Ctrl+C stops it.');const seen=new Set();let stopped=false;process.on('SIGINT',()=>{stopped=true;});while(!stopped){for(const m of await client.replies()){if(!seen.has(m.id)){seen.add(m.id);console.log('Reply received:',m.text);await client.event('done',`Your reply reached the demo adapter: ${m.text}`);}await client.ack(m.id);}await new Promise(r=>setTimeout(r,1000));}})().catch(e=>{console.error(e.message);process.exitCode=1;});

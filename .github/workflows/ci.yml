@@ -1,0 +1,142 @@
+# Hush is a desktop app, so "it builds" is not the interesting question. Each platform
+# runs the unit tests, then boots the real Electron app and drives its own windows
+# through the self-test, then packages it. The self-test is what catches the
+# platform-specific work, because several checks inside it only prove the branch for the
+# platform they run on.
+name: CI
+
+on:
+  # A pull request is the gate, so that is where the matrix runs. Pushing to a branch
+  # that already has a pull request open used to start a second, identical run and bill
+  # for both; widening the branch list made that worse rather than better. Pushes to main
+  # still run, as the check that what landed actually works.
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push makes the run it replaced worthless. Stop paying for it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+          - os: macos-latest
+            name: macOS
+          - os: ubuntu-latest
+            name: Linux
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      # The one part of Hush that is not JavaScript. Compiling it here is the only check
+      # available that it builds against a real macOS SDK, since it cannot be built
+      # anywhere else. Packaging would catch this too, but several minutes later and
+      # buried in electron-builder's output.
+      - name: Build the macOS dictation helper
+        if: runner.os == 'macOS'
+        run: npm run build:mac-helper
+
+      # Compiling proves the Swift is valid. Running it proves the newer recogniser was
+      # compiled in rather than quietly excluded by the version guard around it, and that
+      # the binary starts at all. Touches no microphone and asks for no permission.
+      - name: What the macOS helper can do
+        if: runner.os == 'macOS'
+        run: |
+          swiftc --version
+          output=$(./src/dictation-macos --capabilities)
+          echo "$output"
+          echo "$output" | grep -q '"analyzerCompiled":"yes"'             || { echo 'SpeechAnalyzer was excluded from the build; the macOS 26 path is not compiled in'; exit 1; }
+          echo "$output" | grep -q '"recognizer":"yes"'             || echo 'note: no SFSpeechRecognizer on this runner, which is expected on a machine with no speech data'
+
+      # A bare X server is not enough for this app. Hush minimizes its panel to keep a
+      # taskbar button, and with no window manager running there is nothing to minimize
+      # into, so that behaviour cannot be tested at all. openbox is the smallest thing
+      # that provides it. The hosted runner also has no configurable Chromium sandbox
+      # and no session bus, which is what --no-sandbox and dbus-run-session are for.
+      - name: Desktop session for the Linux runner
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y openbox x11-utils dbus-x11
+
+      - name: App self-test (Linux)
+        if: runner.os == 'Linux'
+        timeout-minutes: 10
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" bash -c '
+            openbox --sm-disable &
+            for _ in $(seq 40); do
+              xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q "window id" && break
+              sleep 0.25
+            done
+            xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q "window id"               || { echo "no window manager came up; minimize would not be testable"; exit 1; }
+            dbus-run-session -- npx electron . --no-sandbox
+          '
+        env:
+          HUSH_SELF_TEST: '1'
+          HUSH_DATA_DIR: ${{ github.workspace }}/.selftest-data
+          HUSH_ARTIFACTS: ${{ github.workspace }}/artifacts
+
+      - name: App self-test
+        if: runner.os != 'Linux'
+        timeout-minutes: 10
+        run: npx electron .
+        env:
+          HUSH_SELF_TEST: '1'
+          HUSH_DATA_DIR: ${{ github.workspace }}/.selftest-data
+          HUSH_ARTIFACTS: ${{ github.workspace }}/artifacts
+
+      # Electron writes nothing useful to a pipe on Windows, so the self-test reports by
+      # file. Print it either way: a green step above is not evidence of what ran.
+      - name: Self-test report
+        if: always()
+        shell: bash
+        run: |
+          echo '--- startup ---'
+          cat artifacts/startup.log || echo 'the app logged no startup progress'
+          echo '--- self-test ---'
+          cat artifacts/electron-check.json || echo 'the self-test wrote no report'
+
+      # Packaging is its own failure surface: the icon has to be a format the target
+      # accepts, and files the app reads at runtime have to survive being put in an asar.
+      - name: Package
+        run: npm run package
+
+      # bin/channel.cjs is read from inside app.asar and run by the packaged binary
+      # behaving as Node. Neither of those exists before packaging, so this is the only
+      # place the channel's real delivery path can be exercised. It needs no display.
+      - name: Packaged channel check
+        run: node test/channel-packaged.cjs
+
+      - name: Keep the build and the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hush-${{ matrix.name }}
+          path: |
+            artifacts/
+            dist/*/*.exe
+            dist/*/*.dmg
+            dist/*/*.AppImage
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,0 +1,7 @@
+// Run with ELECTRON_RUN_AS_NODE=1 using the packaged Hush.exe.
+const path=require('node:path');const fs=require('node:fs');
+const resources=path.join(path.dirname(process.execPath),'resources');
+const {Store}=require(path.join(resources,'app.asar/src/store.cjs'));
+const {codex,executable}=require(path.join(resources,'app.asar/src/providers.cjs'));
+(async()=>{const store=new Store();const cwd=path.resolve('artifacts/packaged-project');fs.mkdirSync(cwd,{recursive:true});let timer;
+try{const binary=executable('codex');if(!binary.includes('app.asar.unpacked'))throw Error('Packaged runtime was not selected: '+binary);const s=await codex(store,{cwd,title:'Packaged Hush test'},async()=>{});const done=new Promise((resolve,reject)=>{timer=setTimeout(()=>reject(Error('Packaged provider timed out')),90000);store.on('change',()=>{if(['done','error','offline'].includes(s.status))resolve();});});await store.reply(s.id,'Connection test only. Reply with exactly HUSH_PACKAGED_OK. Do not use tools.');await done;const passed=s.status==='done'&&s.messages.some(m=>m.role==='agent'&&m.text==='HUSH_PACKAGED_OK');const report={passed,status:s.status,bundledRuntime:true,messages:s.messages.map(({role,text})=>({role,text}))};fs.writeFileSync('artifacts/packaged-provider.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));if(!passed)throw Error('Packaged provider check failed.');}finally{clearTimeout(timer);await store.close();}})().catch(e=>{console.error(e.stack);process.exitCode=1;});

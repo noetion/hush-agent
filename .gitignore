@@ -1,0 +1,20 @@
+node_modules/
+dist/
+artifacts/
+.local/
+*.log
+.devdata/
+.selftest-data/
+.packaged-data/
+artifacts-packaged/
+
+# Working notes. These are briefs and running state for whoever is building, not
+# documentation for anyone reading the project, and this repository is public.
+# Keep them on disk, keep them out of the repository.
+PRODUCT.md
+STATE.md
+NOTES.md
+TODO.md
+work/
+scratch/
+.notes/
