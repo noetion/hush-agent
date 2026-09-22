@@ -22,7 +22,7 @@ Nothing else. Hush creates no account, adds no subscription, and never asks for 
 ## Run it
 
 ```bash
-git clone https://github.com/jonathanjasare/hush-agent
+git clone https://github.com/noetion/hush-agent
 cd hush-agent
 npm ci
 npm start
