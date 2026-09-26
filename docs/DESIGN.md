@@ -23,7 +23,7 @@ Native window shaping was removed after it caused clipping on mixed-DPI setups a
 
 Left alone the panel fades, then rolls up to a single status bar, and lets clicks through to whatever is behind it. Two depths rather than one: a faded panel still shows a conversation worth glancing at, while a rolled-up bar has one line and nothing to act on, so it can sink further.
 
-It never recedes while you hold a draft, are dictating, or have a decision waiting. Hovering counts as using it, so reading is never interrupted.
+Drafts extend the idle delay to four seconds before dimming and twelve before collapsing. Dictation and a waiting decision keep it awake. Active hovering also keeps it awake; a parked pointer stops doing so after twelve seconds.
 
 ## How this is checked
 

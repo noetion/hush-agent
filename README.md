@@ -1,113 +1,102 @@
 # Hush
 
-**Reply to your coding agents without stopping what you are doing.**
+**Keep your coding agents close without interrupting your work.**
 
-Codex, Claude Code and Cursor run for minutes at a time and then wait for you. Hush puts them in one small panel in the corner of your screen, tells you quietly when one needs an answer, and takes your reply. Windows, macOS and Linux.
+Hush is a small desktop panel for Codex, Claude Code and Cursor Agent CLI. See when an agent needs you, send a reply, and return to what you were doing. Notifications are silent and do not take focus.
 
-![A conversation open in Hush, with a reply box underneath](docs/images/inbox.png)
+## Install and run
 
-When an agent finishes or needs input, a cue appears for five seconds. It makes no sound and never takes focus, so whatever you were doing carries on.
-
-![The notification cue: a quiet heads-up, click to reply](docs/images/cue.png)
-
-Press **Ctrl+Shift+Space** from anywhere to open the panel, or click the cue. **Send & hide** puts it away again. **Escape** hides it and keeps your draft.
-
-## What you need
-
-- **Node 22 or newer.**
-- **At least one agent CLI.** Codex is included with Hush and uses your existing Codex sign-in. [Claude Code](https://claude.com/claude-code) and the Cursor Agent CLI must be installed and signed in separately if you want those.
-
-Nothing else. Hush creates no account, adds no subscription, and never asks for your password.
-
-## Run it
+You need [Node.js 22 or newer](https://nodejs.org/), [Git](https://git-scm.com/), and an account for the agent you want to use. Hush runs on Windows, macOS 13 or newer, and Linux with a desktop session.
 
 ```bash
-git clone https://github.com/noetion/hush-agent
+git clone https://github.com/noetion/hush-agent.git
 cd hush-agent
 npm ci
 npm start
 ```
 
-That is the whole install. Because nothing arrives as a downloaded executable, no operating system warns about it, and `git pull` is how you update.
+Quit Hush from its tray or menu bar menu when you are finished.
 
-Hush opens its panel. Closing the panel minimizes it to the taskbar or Dock rather than quitting, so agents stay connected.
+Codex is included. Sign in to Codex if you have not already; Hush uses your existing sign-in. To use [Claude Code](https://code.claude.com/docs/en/overview) or [Cursor Agent CLI](https://cursor.com/docs/cli/overview), install and sign in to that CLI first. Your provider's plan and usage limits still apply. Hush requires no separate account or subscription.
 
-<details>
-<summary>Packaged builds, and why the clone is easier</summary>
+On macOS, dictation from a source installation also needs Apple's command-line tools. Install them once with `xcode-select --install`. You can use Hush without dictation while they are unavailable.
 
-`npm run package` builds for whichever platform you run it on: a portable `.exe` on Windows, a `.dmg` on macOS, an `.AppImage` on Linux. None needs an installer or administrator access.
+## Your first conversation
 
-They are **not code-signed**, so Windows shows "Windows protected your PC" the first time and you have to choose **More info → Run anyway**; macOS and Linux object in their own ways. Signing needs a certificate tied to a real identity. Running from a clone sidesteps all of it.
-</details>
+1. Open **Tasks** and choose an existing conversation, or select **New** to start one. A project folder is optional for a new conversation.
+2. Type a reply, attach an image when available, or use the microphone to dictate.
+3. Press **Command+Enter** on macOS or **Ctrl+Enter** on Windows and Linux to send and hide the panel.
 
-## First steps
+Use **Command+Shift+Space** on macOS or **Ctrl+Shift+Space** on Windows and Linux to bring Hush back. You can also click its tray or menu bar icon. **Escape** hides the panel and keeps your draft. Closing the panel minimizes it; agents remain connected until you quit Hush.
 
-1. Open **Tasks** to find conversations you already have in Codex, Claude Code or Cursor.
-2. Pick one and reply. For a Codex task that Codex still owns, keep Codex running: Hush queues your reply into that same task.
-3. Or open **New** and start a fresh conversation. No project folder required.
+When an agent finishes or needs input, a small cue appears for five seconds. Click it to open Hush. Cues contain no message preview and are limited to one every fifteen seconds. **Quiet mode** pauses them while the unread count remains available.
 
-## Agents it works with
+## Supported conversations
 
-| Connection | What works | Boundary |
+| Agent | What you can do | What to know |
 |---|---|---|
-| **Codex** | Replies and images to tasks the desktop app owns; new sessions also get model selection | Existing-task replies go through the official queue, so Codex keeps ownership. Approvals for those stay in Codex. |
-| **Claude Code** | New and resumed sessions, images, model selection, per-tool permission decisions | Needs Claude Code installed and signed in. A conversation an open Claude Code window is already running is read-only here, because resuming it would write your reply into a transcript that window never sees. Reply there, or close it and reconnect. Conversations Hush starts are its own and reply normally. |
-| **Cursor Agent CLI** | ACP conversations, images, live model selection | Needs the Cursor Agent CLI installed and signed in. Conversations created in the Cursor IDE cannot be reached: ACP only loads sessions under `~/.cursor/acp-sessions`, while IDE chats live in a separate store whose ids it rejects. That is a limit in Cursor, not an untested case. |
-| **Herdr** | Find running local agents, read output, reply, focus them in Herdr | Needs `herdr` on `PATH` and its server running. Blocked terminal prompts are handled in Herdr. |
-| **Grok Bot** | Not connected | Its agents run on xAI's cloud rather than as a local process, and no first-party interface for reading a bot's state and replying is documented. Nothing to attach to yet. |
-| **Anything else** | A local bridge that accepts status and returns replies | You supply a small adapter. See [the bridge guide](docs/BRIDGE.md). |
+| **Codex** | Start conversations, resume saved ones, send replies and images, and choose models for conversations started or resumed in Hush. | For tasks still owned by Codex, keep Codex running. Replies reach the same task; model changes and approval prompts stay in Codex. |
+| **Claude Code** | Start and resume conversations, send images, choose models, and answer tool permissions in Hush. | Replies to a conversation running in another Claude Code window arrive as messages from Hush. Images and permission decisions for that conversation stay in the original window. Close that window before resuming the conversation in Hush. |
+| **Cursor Agent CLI** | Start and resume CLI conversations, send images, choose models, and answer permission prompts. | Conversations created in the Cursor IDE are unavailable. Install and sign in to the Agent CLI separately. |
 
-**Open terminal** hands a finished session back to its own CLI in a new terminal window and releases Hush's hold on it. Hush names the terminal it could not find rather than failing silently.
+For a finished conversation started or resumed in Hush, **Open terminal** lets you continue in the agent's own CLI. Hush releases that connection first.
+
+If you use Herdr, keep its server running and choose **Connect live Herdr agents** in Tasks. For custom integrations, see the [integration guide](docs/BRIDGE.md).
 
 ## Dictation
 
-The **microphone** button listens until you press Stop, adding each phrase to your draft as editable text. Speak as long as you like; pauses between sentences do not end it, and stopping finishes the phrase you are part-way through rather than dropping it.
+Click the microphone to start, speak, then click **Stop**. The transcript is added to your draft for editing; it is sent to the agent only when you send your reply.
 
-Each platform uses the recognizer it already has, so there is no model to download and no subscription. Windows uses the one in the box. macOS 26 uses SpeechAnalyzer, on device. Linux has no system recognizer, so it records with `arecord`, `parecord` or `ffmpeg` and transcribes with a whisper.cpp CLI on `PATH` — set `HUSH_DICTATION_MODEL` to a model file, or `HUSH_DICTATION_CMD` to your own command. Where a piece is missing the button says which one on hover.
+- **macOS:** uses on-device speech recognition. Allow microphone access when requested. Older macOS versions may also request speech-recognition permission. Enable Dictation in **System Settings → Keyboard** if recognition is unavailable. Apple may need an internet connection to download speech assets before first use.
+- **Windows:** uses the installed Windows speech recognizer.
+- **Linux:** needs a recorder and a local transcriber. Follow the [Linux dictation setup](docs/VOICE.md#linux-setup).
 
-[Why it is built this way](docs/VOICE.md), including what was ruled out.
+On macOS, Hush refuses recognition when an on-device recognizer is unavailable rather than sending audio to a speech service. If dictation cannot start, Hush explains the problem and you can continue typing.
 
-## Staying out of the way
+## Make it suit your workspace
 
-Left alone, Hush fades to half opacity after two seconds and lets your clicks pass straight through to whatever is behind it. After five it rolls up to a single status bar and sinks further, since by then there is one line left and nothing to act on.
+Choose a screen corner in **Preferences**, or drag the header to place Hush yourself. Notifications appear on the screen where your pointer is.
 
-![Hush rolled up to a single bar reading one agent connected](docs/images/collapsed.png)
+When idle, the panel dims after about two seconds and rolls up after five. It lets clicks pass through while dimmed. Rest your pointer over it, type, or use the shortcut to wake it. A draft extends the delay; dictation and a pending decision keep it open. Turn this behaviour off in Preferences if you want the panel to stay visible.
 
-Moving onto it, typing, the shortcut, or an agent needing you brings it back. It never recedes while you are holding a draft, dictating, or have a decision waiting. Turn it off in Preferences if you would rather it stayed put.
+Normal windows and borderless fullscreen work with the overlay. Exclusive fullscreen can cover it.
 
-- **Cue:** five seconds, no sound, no message preview, at most one every 15 seconds.
-- **Quiet mode:** suppresses every popup until you turn it off; the tray still counts unread.
-- **Placement:** any corner of the screen your pointer is on, or drag it where you like.
-- **Games:** ordinary windows and borderless fullscreen work. Exclusive fullscreen can cover any desktop overlay. Hush does not inject into games or capture your screen to work around that.
+## Privacy and local data
 
-## Your data
+Hush adds no analytics or remote relay. Replies and attachments go to the agent provider you choose and are subject to that provider's data policies.
 
-Preferences, session references, drafts and the local bridge file live in Hush's own profile directory: `%APPDATA%\Hush` on Windows, `~/Library/Application Support/Hush` on macOS, `~/.config/Hush` on Linux. Conversation text stays in memory for the run; the providers keep their own history.
+Preferences, connection details, drafts and saved images are stored locally:
 
-Hush adds no analytics and no remote relay. Attached images stay local so queued replies can use them, and providers receive them only when you send.
+| Platform | Location |
+|---|---|
+| Windows | `%APPDATA%\Hush` |
+| macOS | `~/Library/Application Support/Hush` |
+| Linux | `~/.config/Hush` |
 
-## Develop
+Conversation text stays in memory while Hush runs; providers retain their own history. Saved images remain on your computer so replies and history can use them. Remove them with **Preferences → Clear saved images** when no replies or agent turns are pending.
 
-```bash
-npm test              # unit tests
-npm start             # run from source
-npm run package       # build for this platform
-```
+## Update
 
-`HUSH_DATA_DIR` selects an isolated profile; do not share one between simultaneous instances. `HUSH_CODEX_BIN` and `HUSH_CLAUDE_BIN` point at specific provider executables. If Electron's binary is missing after install, run `node node_modules/electron/install.js`.
-
-The self-test boots the real app, drives its own windows, writes screenshots and results under `artifacts/`, then quits:
+Quit Hush, then run these commands inside your `hush-agent` folder:
 
 ```bash
-HUSH_SELF_TEST=1 HUSH_DATA_DIR="$PWD/artifacts/test-profile" npx electron .
+git pull --ff-only
+npm ci
+npm start
 ```
 
-On a headless Linux machine it needs both a display and a window manager, because a window with no window manager cannot be minimized and that is part of what it checks. See `.github/workflows/ci.yml` for the exact invocation.
+## Troubleshooting
 
-Every pull request and every merge to `main` runs the unit tests, the self-test against the real app, a package build, and the channel exercised from that packaged build, on Windows, macOS and Linux. Day-to-day use so far has been on Windows, so treat macOS and Linux as working rather than worn in.
+- **No conversations appear:** check that the relevant agent is installed and signed in, select it in Tasks, then click **Refresh**. Cursor IDE chats do not appear in Hush.
+- **A reply remains queued in Codex:** keep the owning Codex app open and check that task there before sending again.
+- **The shortcut is unavailable:** another app may be using it. Open Hush from the tray or menu bar.
+- **Dictation is blocked on macOS:** enable Microphone and, when requested, Speech Recognition in **System Settings → Privacy & Security**, then restart Hush. Source installations also need the command-line tools.
+- **Electron is missing after installation:** run `node node_modules/electron/install.js`, then `npm start`.
 
-[What is verified and what is not](docs/VERIFICATION.md) is worth reading before trusting any of the above. There are also notes on [why Electron](docs/RESEARCH.md) and [the interface decisions](docs/DESIGN.md).
+## Contribute
 
-## Licence
+Bug reports and focused contributions are welcome. Include your operating system, Hush version, agent, and steps to reproduce. See [development and verification](docs/DEVELOPMENT.md) for running checks and building locally.
 
-[MIT](LICENSE). Use it, change it, ship it.
+## License
+
+[MIT](LICENSE).

@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-module.exports=async({app,store,action,panel})=>{
+module.exports=async({app,store,action,panel,shutdown})=>{
  const dir=process.env.HUSH_ARTIFACTS||'artifacts/tasks';fs.mkdirSync(dir,{recursive:true});const report={};
  const wait=async s=>{const end=Date.now()+90000;while(Date.now()<end){if(['done','error','offline'].includes(s.status)){assert.equal(s.status,'done',s.messages.at(-1)?.text);return;}await new Promise(r=>setTimeout(r,300));}throw Error('Model turn timed out');};
  try{
@@ -12,5 +12,5 @@ module.exports=async({app,store,action,panel})=>{
    const resumed=await action('connect',{provider:'codex',resumeId:sourceId});const r=store.get(resumed.id);assert.equal(r.sourceId,sourceId);
    await store.reply(r.id,'What code did I ask you to remember? Reply with only that code. Do not use tools.');await wait(r);assert.ok(r.messages.at(-1).text.includes('HUSH_CONTEXT_314'));report.contextRetained=true;
    report.passed=true;
- }catch(e){report.error=e.stack;}finally{fs.writeFileSync(path.join(dir,'task-check.json'),JSON.stringify(report,null,2));app.exit(report.passed?0:1);}
+ }catch(e){report.error=e.stack;}finally{fs.writeFileSync(path.join(dir,'task-check.json'),JSON.stringify(report,null,2));shutdown();app.exit(report.passed?0:1);}
 };

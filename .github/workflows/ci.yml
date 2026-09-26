@@ -33,6 +33,8 @@ jobs:
             name: Windows
           - os: macos-latest
             name: macOS
+          - os: macos-15-intel
+            name: macOS-Intel
           - os: ubuntu-latest
             name: Linux
 
@@ -65,9 +67,12 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           swiftc --version
+          node scripts/check-mac-helper.cjs
           output=$(./src/dictation-macos --capabilities)
           echo "$output"
-          echo "$output" | grep -q '"analyzerCompiled":"yes"'             || { echo 'SpeechAnalyzer was excluded from the build; the macOS 26 path is not compiled in'; exit 1; }
+          if [ "${{ matrix.name }}" = "macOS" ]; then
+            echo "$output" | grep -q '"analyzerCompiled":"yes"' || { echo 'SpeechAnalyzer was excluded from the build'; exit 1; }
+          fi
           echo "$output" | grep -q '"recognizer":"yes"'             || echo 'note: no SFSpeechRecognizer on this runner, which is expected on a machine with no speech data'
 
       # A bare X server is not enough for this app. Hush minimizes its panel to keep a
@@ -90,7 +95,7 @@ jobs:
               sleep 0.25
             done
             xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q "window id"               || { echo "no window manager came up; minimize would not be testable"; exit 1; }
-            dbus-run-session -- npx electron . --no-sandbox
+            dbus-run-session -- npm start -- --no-sandbox
           '
         env:
           HUSH_SELF_TEST: '1'
@@ -100,7 +105,7 @@ jobs:
       - name: App self-test
         if: runner.os != 'Linux'
         timeout-minutes: 10
-        run: npx electron .
+        run: npm start
         env:
           HUSH_SELF_TEST: '1'
           HUSH_DATA_DIR: ${{ github.workspace }}/.selftest-data
@@ -127,6 +132,14 @@ jobs:
       # place the channel's real delivery path can be exercised. It needs no display.
       - name: Packaged channel check
         run: node test/channel-packaged.cjs
+
+      - name: Check packaged macOS helper
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          helper=$(find dist -path '*/app.asar.unpacked/src/dictation-macos' -type f -print -quit)
+          test -n "$helper"
+          node scripts/check-mac-helper.cjs "$helper"
 
       - name: Keep the build and the report
         if: always()

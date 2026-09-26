@@ -38,6 +38,29 @@ test('blank and whitespace-only phrases are dropped, not joined as gaps', () => 
   ]), 'one two');
 });
 
+test('a helper crash without protocol output reaches the user as an error', async () => {
+  const dictation = new Dictation();
+  dictation.chosen = { available: true, reason: '', command: () => ({
+    command: process.execPath, args: ['-e', 'process.exit(2)'],
+  }) };
+  dictation.chosenAt = Date.now();
+  await assert.rejects(dictation.start(), /stopped before producing a transcript/);
+  assert.equal(dictation.child, null);
+});
+
+test('Stop during preparation prevents the helper from starting capture', async () => {
+  const dictation = new Dictation();
+  dictation.chosen = { available: true, reason: '', command: async () => {
+    await new Promise(resolve => setTimeout(resolve, 20));
+    return { command: process.execPath, args: ['-e', 'console.log(JSON.stringify({type:"text",text:"capture started"}))'] };
+  } };
+  dictation.chosenAt = Date.now();
+  const result = dictation.start();
+  dictation.stop();
+  assert.equal(await result, '');
+  assert.equal(dictation.child, undefined);
+});
+
 test('availability follows the backend for this platform, not a hardcoded list', async () => {
   const { chooseBackend } = require('../src/dictation-backends.cjs');
   const dictation = new Dictation();

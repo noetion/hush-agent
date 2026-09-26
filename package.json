@@ -8,7 +8,7 @@
   },
   "main": "src/main.cjs",
   "scripts": {
-    "start": "electron .",
+    "start": "node scripts/start.cjs",
     "test": "node --test test/*.test.cjs",
     "package": "electron-builder --publish never",
     "build:mac-helper": "node scripts/build-mac-helper.cjs"
@@ -23,10 +23,12 @@
       "src/dictation.ps1",
       "src/dictation-linux.cjs",
       "src/dictation-macos",
+      "src/dictation-macos.plist",
       "src/dictation-macos.swift"
     ],
     "files": [
       "src/**/*",
+      "!src/dictation-macos.build.json",
       "bin/**/*",
       "package.json",
       "test/electron-check.cjs",
@@ -45,9 +47,10 @@
       "icon": "src/assets/hush.png",
       "category": "public.app-category.developer-tools",
       "identity": null,
+      "minimumSystemVersion": "13.0",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Hush uses the microphone only while you hold the dictate button, to turn what you say into a draft reply.",
-        "NSSpeechRecognitionUsageDescription": "Hush uses on-device speech recognition to turn dictation into a draft reply."
+        "NSMicrophoneUsageDescription": "Hush uses the microphone when you start dictation and stops when you press Stop, to turn speech into a draft reply.",
+        "NSSpeechRecognitionUsageDescription": "Hush uses on-device speech recognition to turn dictation into a draft reply. Audio is not sent to a speech service."
       }
     },
     "linux": {

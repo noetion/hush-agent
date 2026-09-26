@@ -1,4 +1,7 @@
 const $=id=>document.getElementById(id);let state={sessions:[],saved:[],settings:{}},selected=null,tab='tasks';let drafts={};try{drafts=JSON.parse(localStorage.getItem('drafts')||'{}');}catch{}let requestRendered='',scrollConversation=null,listening=false,sessionSignature='',attachmentSignature='',panelWasVisible=false,compact=false,faded=false,collapsed=false,pointerInside=false,fadeTimer,collapseTimer,dwellTimer,lastWake=0,lastInput=Date.now();const sessionOrder=[];let messageNodes=new Map();
+const modifier=window.hush.platform==='darwin'?'Command':'Ctrl';
+for(const key of document.querySelectorAll('[data-shortcut-modifier]'))key.textContent=modifier;
+$('send').title=`Send & hide - ${modifier}+Enter`;
 async function call(name,data){const r=await window.hush.call(name,data);if(!r.ok)throw Error(r.error);return r.value;}
 function error(e){$('error').textContent=e.message||String(e);$('error').hidden=false;}
 // Nothing was catching what fell through. A rejected call or a throw inside an event
@@ -14,7 +17,7 @@ function saveDraft(){if(selected){drafts[draftKey(selected)]=$('reply').value;lo
 function showTab(name){saveDraft();tab=name;for(const [id,page]of[['tasks','tasks'],['inbox','inbox'],['connections','connections'],['settings','preferences']]){$(page).hidden=id!==name;$(id+'-tab').classList.toggle('active',id===name);if(id===name)$(id+'-tab').setAttribute('aria-current','page');else $(id+'-tab').removeAttribute('aria-current');}clearError();if(name==='inbox')requestAnimationFrame(()=>{const messages=$('messages');messages.scrollTop=messages.scrollHeight;});}
 // Recede in two stages once you stop using Hush, and come back on any real attention.
 // Hovering counts as using it, so reading does not get interrupted. Never while you
-// hold a draft, are dictating, or have a decision waiting.
+// are dictating or have a decision waiting. Drafts extend the idle delay.
 const FADE_AFTER=1800,COLLAPSE_AFTER=5000,FADE_COMPOSING=4000,COLLAPSE_COMPOSING=12000,DWELL_TO_WAKE=350,HOVER_GRACE=12000;
 function composing(){return document.activeElement===$('reply')||!!$('reply').value.trim();}
 // The collapsed bar is one line of text and nothing else, so that line is the whole of
@@ -71,7 +74,7 @@ function renderConversation(){const s=state.sessions.find(x=>x.id===selected);$(
   $('attach').disabled=unavailable||!s.images||!!s.sending; $('dictate').disabled=unavailable||!state.dictation;
   const attachments=$('attachments');const attachmentKey=JSON.stringify([s.id,s.attachments,s.sending]);if(attachmentKey!==attachmentSignature){attachmentSignature=attachmentKey;attachments.replaceChildren();for(const a of s.attachments||[]){const chip=el('button','attachment',a.name+' ×');chip.type='button';chip.disabled=!!s.sending;chip.setAttribute('aria-label','Remove '+a.name);chip.onclick=()=>call('remove-image',{id:s.id,attachmentId:a.id}).catch(error);attachments.append(chip);}}
   const model=$('model');const desired=JSON.stringify([s.id,s.models,s.shared,s.selectedModel]);if(model.dataset.options!==desired){model.dataset.options=desired;model.replaceChildren();const base=el('option','',s.shared?'Model set in Codex':'Use current model');base.value='';model.append(base);for(const m of s.models||[]){const option=el('option','',m.name);option.value=m.id;model.append(option);}model.value=s.selectedModel||'';}model.disabled=unavailable||!!s.shared||!['Codex','Claude Code','Cursor'].includes(s.provider);model.title=s.shared?'The shared reply queue does not change the model. Change it in Codex.':'Model for your next message';
-  $('reply-hint').textContent=listening?'Listening ... speak, or press Stop':s.sending?'Sending...':s.queuePending?'Queued in Codex · waiting for its owner':unavailable?'Reply in the source app':s.status==='working'?'Agent is working · draft kept here':'Ctrl+Enter to send';
+  $('reply-hint').textContent=listening?'Listening ... speak, or press Stop':s.sending?'Sending...':s.queuePending?'Queued in Codex · waiting for its owner':unavailable?'Reply in the source app':s.status==='working'?'Agent is working · draft kept here':`${modifier}+Enter to send`;
   const request=$('request');request.hidden=!s.request;
   const key=s.id+':'+(s.request?.id||'');if(requestRendered===key)return;requestRendered=key;request.replaceChildren();if(!s.request)return;
   const r=s.request;request.append(el('h2','',r.title));if(r.detail)request.append(el('pre','',r.detail));
