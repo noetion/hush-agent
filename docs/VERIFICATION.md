@@ -19,6 +19,7 @@ On Apple Silicon with macOS 27.0 and Node 24.21.0:
 
 - The unit suite passed: 71 passed, no failures, one Windows-only skip.
 - `npm start` and its real-app self-test passed with an isolated profile. The inspected normal and compact layouts remained readable without overflow; Command shortcut labels matched macOS.
+- An unsigned nested Electron helper was reproduced locally. The launcher repaired the bundle, its recursive signature check passed, and a native source self-test passed outside macOS's protected Documents folder. The README now recommends an unrestricted checkout location.
 - The universal speech helper compiled. Both architecture slices declare macOS 13.0 as their minimum version, and its permission descriptions and ad-hoc signature passed inspection.
 - SpeechAnalyzer transcribed a generated recording containing two sentences, including “keyboard navigation” and “tests again”, through the source app's dictation path.
 - The legacy recognizer's failure path returned an explicit “Siri and Dictation are disabled” error on this machine. Legacy transcription accuracy has **not** been established with Dictation enabled.

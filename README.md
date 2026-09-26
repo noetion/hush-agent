@@ -8,6 +8,8 @@ Hush is a small desktop panel for Codex, Claude Code and Cursor Agent CLI. See w
 
 You need [Node.js 22 or newer](https://nodejs.org/), [Git](https://git-scm.com/), and an account for the agent you want to use. Hush runs on Windows, macOS 13 or newer, and Linux with a desktop session.
 
+On macOS, create a folder with `mkdir -p ~/Developer`, then run `cd ~/Developer` before cloning. This avoids the access restrictions macOS applies to Desktop, Documents and Downloads.
+
 ```bash
 git clone https://github.com/noetion/hush-agent.git
 cd hush-agent

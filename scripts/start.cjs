@@ -23,10 +23,27 @@ if (process.platform === 'darwin') {
     execFileSync('/usr/bin/plutil', ['-replace', key, '-string', value, info]);
     changed = true;
   }
-  // Refresh the development bundle's seal after changing Info.plist. This is local
-  // ad-hoc signing, not a Developer ID signature or a public distribution build.
-  if (changed) execFileSync('/usr/bin/codesign', ['--force', '--sign', '-',
-    '--preserve-metadata=entitlements,flags', bundle], { stdio: 'inherit' });
+  const validSignature = target => {
+    try {
+      execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', target], { stdio: 'ignore' });
+      return true;
+    } catch { return false; }
+  };
+  // Intel distributions can have unsigned helpers. Repair invalid components from
+  // the inside out, leaving valid nested code alone. Retry interrupted preparation
+  // even if Info.plist already has our values. This only signs this local install.
+  if (changed || !validSignature(bundle)) {
+    const frameworks = path.join(bundle, 'Contents', 'Frameworks');
+    for (const entry of fs.readdirSync(frameworks, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/\.(app|framework)$/.test(entry.name)) continue;
+      const component = path.join(frameworks, entry.name);
+      if (!validSignature(component)) execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-',
+        '--preserve-metadata=entitlements,flags', component], { stdio: 'inherit' });
+    }
+    execFileSync('/usr/bin/codesign', ['--force', '--sign', '-',
+      '--preserve-metadata=entitlements,flags', bundle], { stdio: 'inherit' });
+    execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', bundle], { stdio: 'inherit' });
+  }
   // LaunchServices makes this bundle responsible for privacy prompts instead of
   // attributing them to Terminal or whichever editor launched npm. Transfer the
   // shell environment privately; putting tokens in `open --env` exposes argv.

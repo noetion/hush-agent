@@ -5,6 +5,7 @@ if(sourceEnvironment){
   const file=sourceEnvironment.slice('--hush-source-env='.length);
   Object.assign(process.env,JSON.parse(fs.readFileSync(file,'utf8')));
   fs.unlinkSync(file);
+  process.chdir(path.resolve(__dirname,'..'));
 }
 const {Store}=require('./store.cjs');const providers=require('./providers.cjs');const {herdr}=require('./herdr.cjs');const {createBridge}=require('./bridge.cjs');const {WindowPolicy}=require('./window-policy.cjs');
 const store=new Store();let panel,notice,tray,policy,bridge,herdrConnection;let quitting=false,choosingFolder=false;let settings={corner:'top-right',quiet:false,shortcut:'CommandOrControl+Shift+Space',hideOnBlur:true,panelPosition:null,fadeWhenIdle:true,transparent:false};let placing=false;const PANEL_HEIGHTS={full:500,compact:320,collapsed:46};const DIM={faded:0.5,collapsed:0.24};let fadeTimer,settleFade=null,dimmed=false,dimDepth='faded';let settingsFile,metadataFile;let saved=[];let shortcutOk=false;
