@@ -92,6 +92,11 @@ module.exports=async({app,panel,notice,policy,store,action,bridge,snapshot,shutd
     await action('reply',{id:s.id,text:'Please fix the keyboard navigation.'});assert.equal(s.messages.at(-2).role,'you');report.reply=true;
     store.update(s.id,{status:'waiting',request:{id:'approval-test',kind:'approval',title:'Allow updating navigation.ts?',detail:'Edit the keyboard handlers in navigation.ts. Applies to this request only.'}});store.actions.get(s.id).answer=async(id,value)=>{assert.equal(id,'approval-test');assert.equal(value,'decline');};await pause(300);await capture(panel,'approval.png');await action('answer',{id:s.id,requestId:'approval-test',value:'decline'});report.approval=true;
     report.snapshot={shortcutOk:snapshot().shortcutOk,bridgeActive:fs.existsSync(bridge.filename)};
+    const modifier=process.platform==='darwin'?'Command':'Ctrl';
+    report.shortcuts=await panel.webContents.executeJavaScript("({labels:[...document.querySelectorAll('[data-shortcut-modifier]')].map(n=>n.textContent),send:document.getElementById('send').title})");
+    assert.ok(report.shortcuts.labels.length>=2);
+    assert.ok(report.shortcuts.labels.every(label=>label===modifier));
+    assert.ok(report.shortcuts.send.includes(modifier+'+Enter'));
     if(backdrop){
       await panel.webContents.executeJavaScript("document.getElementById('connections-tab').click()");await glassCapture('connections');
       await panel.webContents.executeJavaScript("document.getElementById('settings-tab').click()");await glassCapture('preferences');

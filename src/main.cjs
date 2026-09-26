@@ -1,5 +1,12 @@
 const {app,BrowserWindow,Tray,Menu,nativeImage,globalShortcut,ipcMain,screen,dialog,shell}=require('electron');
 const fs=require('node:fs');const path=require('node:path');const {spawn}=require('node:child_process');
+const sourceEnvironment=process.argv.find(arg=>arg.startsWith('--hush-source-env='));
+if(sourceEnvironment){
+  const file=sourceEnvironment.slice('--hush-source-env='.length);
+  Object.assign(process.env,JSON.parse(fs.readFileSync(file,'utf8')));
+  fs.unlinkSync(file);
+  process.chdir(path.resolve(__dirname,'..'));
+}
 const {Store}=require('./store.cjs');const providers=require('./providers.cjs');const {herdr}=require('./herdr.cjs');const {createBridge}=require('./bridge.cjs');const {WindowPolicy}=require('./window-policy.cjs');
 const store=new Store();let panel,notice,tray,policy,bridge,herdrConnection;let quitting=false,choosingFolder=false;let settings={corner:'top-right',quiet:false,shortcut:'CommandOrControl+Shift+Space',hideOnBlur:true,panelPosition:null,fadeWhenIdle:true,transparent:false};let placing=false;const PANEL_HEIGHTS={full:500,compact:320,collapsed:46};const DIM={faded:0.5,collapsed:0.24};let fadeTimer,settleFade=null,dimmed=false,dimDepth='faded';let settingsFile,metadataFile;let saved=[];let shortcutOk=false;
 const {liveOwner,postToOwner}=require('./claude-session.cjs');
@@ -305,9 +312,10 @@ async function start(){
   mark('glass applied');
   if(!process.env.HUSH_SELF_TEST)policy.open();
   mark('handing over to the self-test');
+  if(process.env.HUSH_DICTATION_CHECK)await require('../test/mac-dictation-live.cjs')({app,shutdown});
   if(process.env.HUSH_SELF_TEST)await require('../test/electron-check.cjs')({app,panel,notice,policy,store,action,bridge,snapshot,shutdown});
-  if(process.env.HUSH_SHARED_CHECK)await require('../test/shared-check.cjs')({app,panel,store,action});
-  if(process.env.HUSH_TASK_CHECK)await require('../test/task-check.cjs')({app,panel,store,action});
+  if(process.env.HUSH_SHARED_CHECK)await require('../test/shared-check.cjs')({app,panel,store,action,shutdown});
+  if(process.env.HUSH_TASK_CHECK)await require('../test/task-check.cjs')({app,panel,store,action,shutdown});
 }
 // The main process owns the providers, the bridge and the tray. Letting it die quietly
 // on a stray rejection would take the user's inbox with it and tell them nothing, so
@@ -328,4 +336,3 @@ app.on('window-all-closed',()=>{});
 // that leaves that way has to call this itself or the children outlive us.
 function shutdown(){quitting=true;globalShortcut.unregisterAll();policy?.close();herdrConnection?.close();history?.close();cursor.close();dictation.stop();bridge?.close();if(metadataFile)persistMetadata();store.close();}
 app.on('before-quit',shutdown);
-

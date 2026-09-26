@@ -19,13 +19,16 @@ function scratch() {
 }
 
 /** A script that behaves like a recorder: writes audio-sized output, then waits. */
-function fakeRecorder(root, { bytes = 8192 } = {}) {
+function fakeRecorder(root, { bytes = 8192, startupDelay = 0 } = {}) {
   const file = path.join(root, 'recorder.cjs');
   fs.writeFileSync(file, `
     const fs=require('node:fs');
-    fs.writeFileSync(process.argv[process.argv.length-1],Buffer.alloc(${bytes},1));
-    // Stay up until stopped, the way a real recorder does.
-    setInterval(()=>{},1000);
+    setTimeout(()=>{
+      fs.writeFileSync(process.argv[process.argv.length-1],Buffer.alloc(${bytes},1));
+      fs.writeFileSync(${JSON.stringify(path.join(root, 'recorder-ready'))},'');
+      // Stay up until stopped, the way a real recorder does.
+      setInterval(()=>{},1000);
+    },${startupDelay});
   `);
   return file;
 }
@@ -57,15 +60,21 @@ function dictate({ root, recorder, transcriber, stopAfterReady = true }) {
 
   return new Promise((resolve, reject) => {
     let out = '', err = '';
-    const timer = setTimeout(() => { child.kill(); reject(Error(`timed out; stdout so far: ${out}`)); }, 30000);
+    // The runner announces spawn, not completion of the recorder's startup. Wait
+    // for our fixture's audio before stopping; a loaded runner can take over 200ms.
+    const readiness = setInterval(() => {
+      if (stopAfterReady && out.includes('"ready"') && fs.existsSync(path.join(root, 'recorder-ready'))
+        && !fs.existsSync(stopFile)) fs.writeFileSync(stopFile, '');
+    }, 10);
+    const finish = () => { clearInterval(readiness); clearTimeout(timer); };
+    const timer = setTimeout(() => { finish(); child.kill(); reject(Error(`timed out; stdout so far: ${out}`)); }, 30000);
     child.stdout.on('data', b => {
       out += b;
-      if (stopAfterReady && out.includes('"ready"') && !fs.existsSync(stopFile)) fs.writeFileSync(stopFile, '');
     });
     child.stderr.on('data', b => { err += b; });
-    child.on('error', e => { clearTimeout(timer); reject(e); });
+    child.on('error', e => { finish(); reject(e); });
     child.on('close', code => {
-      clearTimeout(timer);
+      finish();
       const rows = out.trim().split(/\r?\n/).filter(Boolean).map(line => {
         try { return JSON.parse(line); } catch { throw Error(`not a JSON line: ${line}`); }
       });
@@ -79,7 +88,7 @@ test('a recording is transcribed and comes back as the spoken text', async () =>
   try {
     const { code, rows } = await dictate({
       root,
-      recorder: fakeRecorder(root),
+      recorder: fakeRecorder(root, { startupDelay: 400 }),
       transcriber: fakeTranscriber(root, { prints: 'please fix the keyboard navigation' }),
     });
     assert.equal(code, 0);

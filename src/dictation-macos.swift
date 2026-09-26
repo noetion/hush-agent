@@ -48,6 +48,7 @@ func argument(_ name: String) -> String? {
 let stopFile = argument("--stop-file")
 // A wave file is how this is checked without a microphone, matching the other helpers.
 let wavePath = argument("--wave")
+let legacyRecognizer = CommandLine.arguments.contains("--legacy-recognizer")
 
 /// True once Hush has asked us to wind up.
 func stopRequested() -> Bool {
@@ -74,11 +75,24 @@ func requireAuthorisation() {
     }
 }
 
+func requireMicrophone() {
+    let waiting = DispatchSemaphore(value: 0)
+    var granted = false
+    AVCaptureDevice.requestAccess(for: .audio) { allowed in
+        granted = allowed
+        waiting.signal()
+    }
+    guard waiting.wait(timeout: .now() + 30) != .timedOut, granted else {
+        die("Microphone access is disabled. Allow Hush in System Settings > Privacy & Security > Microphone, then try again.")
+    }
+}
+
 // MARK: - microphone
 
 /// Feeds 16 kHz mono buffers to whichever recogniser is in use.
 final class Microphone {
     private let engine = AVAudioEngine()
+    private var tapped = false
     private var converter: AVAudioConverter?
     let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000,
                                channels: 1, interleaved: false)!
@@ -105,12 +119,13 @@ final class Microphone {
             }
             if error == nil && converted.frameLength > 0 { onBuffer(converted) }
         }
+        tapped = true
         engine.prepare()
         try engine.start()
     }
 
     func stop() {
-        engine.inputNode.removeTap(onBus: 0)
+        if tapped { engine.inputNode.removeTap(onBus: 0); tapped = false }
         if engine.isRunning { engine.stop() }
     }
 }
@@ -160,6 +175,16 @@ func runSpeechAnalyzer() async throws -> Bool {
         }
     }
 
+    defer { microphone.stop(); feed.finish(); results.cancel() }
+    if stopRequested() { return true }
+    if let wavePath {
+        let audio = try AVAudioFile(forReading: URL(fileURLWithPath: wavePath))
+        emit(["type": "ready"])
+        try await analyzer.start(inputAudioFile: audio, finishAfterFile: true)
+        try await results.value
+        return true
+    }
+
     try microphone.start { buffer in
         guard let converted = convert(buffer, to: analyzerFormat) else { return }
         feed.yield(AnalyzerInput(buffer: converted))
@@ -173,7 +198,7 @@ func runSpeechAnalyzer() async throws -> Bool {
     feed.finish()
     // Finalise rather than cancel: the phrase being spoken is usually why Stop was hit.
     try await analyzer.finalizeAndFinishThroughEndOfInput()
-    _ = await results.result
+    try await results.value
     return true
 }
 
@@ -208,6 +233,9 @@ func runSpeechRecognizer() {
     guard recogniser.isAvailable else {
         die("Speech recognition is unavailable. Turn Dictation on in System Settings under Keyboard, then try again.")
     }
+    guard recogniser.supportsOnDeviceRecognition else {
+        die("On-device dictation is unavailable for this language. Enable Dictation in System Settings > Keyboard, or type your reply instead. Hush will not send audio to a speech service.")
+    }
 
     let microphone = Microphone()
     let queue = DispatchQueue(label: "dev.hush.dictation")
@@ -219,7 +247,7 @@ func runSpeechRecognizer() {
     func begin() {
         let fresh = SFSpeechAudioBufferRecognitionRequest()
         fresh.shouldReportPartialResults = true
-        if #available(macOS 13.0, *) { fresh.requiresOnDeviceRecognition = recogniser.supportsOnDeviceRecognition }
+        fresh.requiresOnDeviceRecognition = true
         request = fresh
         lastSaid = ""
         task = recogniser.recognitionTask(with: fresh) { result, error in
@@ -234,7 +262,9 @@ func runSpeechRecognizer() {
             }
             if error != nil && !finished {
                 // An error after something was said is the utterance ending, not a fault.
-                if lastSaid.isEmpty && !stopRequested() { queue.async { begin() } }
+                if lastSaid.isEmpty && !stopRequested() {
+                    die("Dictation stopped: \(error!.localizedDescription). Check Dictation in System Settings > Keyboard, then try again.")
+                }
             }
         }
     }
@@ -247,16 +277,16 @@ func runSpeechRecognizer() {
     }
     emit(["type": "ready"])
 
-    while !stopRequested() { Thread.sleep(forTimeInterval: 0.2) }
+    while !stopRequested() { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
 
     finished = true
     microphone.stop()
     // Let the recogniser settle the phrase in flight instead of cutting it off.
     request?.endAudio()
     let settle = Date().addingTimeInterval(5)
-    while Date() < settle && task?.isFinishing == false { Thread.sleep(forTimeInterval: 0.1) }
+    while Date() < settle && task?.isFinishing == false { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
     task?.finish()
-    Thread.sleep(forTimeInterval: 0.4)
+    RunLoop.current.run(until: Date().addingTimeInterval(0.4))
 }
 
 // MARK: - a wave file, for checking without a microphone
@@ -265,22 +295,29 @@ func runWaveFile(_ path: String) {
     guard let recogniser = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer() else {
         die("This Mac has no speech recogniser for the current language.")
     }
+    guard recogniser.supportsOnDeviceRecognition else {
+        die("On-device dictation is unavailable for this language. Hush will not send audio to a speech service.")
+    }
     let request = SFSpeechURLRecognitionRequest(url: URL(fileURLWithPath: path))
+    request.requiresOnDeviceRecognition = true
     request.shouldReportPartialResults = false
-    let waiting = DispatchSemaphore(value: 0)
     emit(["type": "ready"])
     var spoke = false
-    recogniser.recognitionTask(with: request) { result, error in
+    let task = recogniser.recognitionTask(with: request) { result, error in
         if let result, result.isFinal {
             say(result.bestTranscription.formattedString)
             spoke = true
-            waiting.signal()
         } else if error != nil {
-            waiting.signal()
+            die("Could not transcribe the recording: \(error!.localizedDescription)")
         }
     }
-    _ = waiting.wait(timeout: .now() + 120)
-    if !spoke { emit(["type": "empty"]) }
+    let deadline = Date().addingTimeInterval(60)
+    withExtendedLifetime(task) {
+        while !spoke && Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+    }
+    if !spoke { task.cancel(); die("Speech recognition did not finish. Enable Dictation in System Settings > Keyboard, then try again.") }
 }
 
 // MARK: - what this build can actually do
@@ -318,24 +355,25 @@ if CommandLine.arguments.contains("--capabilities") {
     exit(0)
 }
 
-requireAuthorisation()
-
-if let wavePath {
-    runWaveFile(wavePath)
-    exit(0)
-}
+if wavePath == nil { requireMicrophone() }
+if stopRequested() { exit(0) }
 
 var handled = false
 #if canImport(Speech) && compiler(>=6.2)
-if #available(macOS 26.0, *) {
+if #available(macOS 26.0, *), !legacyRecognizer {
     let waiting = DispatchSemaphore(value: 0)
     Task {
         do { handled = try await runSpeechAnalyzer() }
-        catch { handled = false }
+        catch { die("Could not start on-device dictation: \(error.localizedDescription). Check Dictation in System Settings > Keyboard, then try again.") }
         waiting.signal()
     }
     waiting.wait()
 }
 #endif
-if !handled { runSpeechRecognizer() }
+if !handled {
+    requireAuthorisation()
+    if stopRequested() { exit(0) }
+    if let wavePath { runWaveFile(wavePath) }
+    else { runSpeechRecognizer() }
+}
 exit(0)

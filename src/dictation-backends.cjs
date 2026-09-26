@@ -4,7 +4,7 @@
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-const {execFileSync}=require('node:child_process');
+const {buildMacHelper}=require('./mac-helper-build.cjs');
 
 /** First of these that exists on PATH, or null. */
 function onPath(names){
@@ -54,23 +54,23 @@ function macBackend(){
     name:'macos',
     available:true,
     reason:'',
-    command(stopFile){
-      return {command:compileMacHelper(source,built,swiftc),args:['--stop-file',stopFile,
+    async command(stopFile){
+      return {command:await compileMacHelper(source,built,swiftc),args:['--stop-file',stopFile,
         ...(process.env.HUSH_DICTATION_WAV?['--wave',process.env.HUSH_DICTATION_WAV]:[])]};
     },
   };
 }
 
 /** Return the helper binary, building it first if the build did not ship one. */
-function compileMacHelper(source,built,swiftc){
-  if(fs.existsSync(built)&&fs.statSync(built).mtimeMs>=fs.statSync(source).mtimeMs)return built;
+async function compileMacHelper(source,built,swiftc){
+  // Packaged helpers are already built and validated; archive timestamps are not
+  // compilation inputs, and an installed app must never need a compiler.
+  if(built.includes('app.asar.unpacked')&&fs.existsSync(built))return built;
   // A packaged app cannot write beside itself, so build into the user's cache instead.
   const target=canWrite(path.dirname(built))?built
     :path.join(os.tmpdir(),`hush-dictation-macos-${process.getuid?.()??0}`);
-  if(fs.existsSync(target)&&fs.statSync(target).mtimeMs>=fs.statSync(source).mtimeMs)return target;
   if(!swiftc)throw Error('Dictation needs the Xcode command line tools to build its speech helper.');
-  execFileSync(swiftc,['-O','-o',target,source],{stdio:'pipe',timeout:120000});
-  return target;
+  return buildMacHelper(source,target,swiftc);
 }
 
 function canWrite(directory){

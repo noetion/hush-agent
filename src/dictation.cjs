@@ -40,13 +40,17 @@ class Dictation {
 
  start(){
   if(!this.available)return Promise.reject(Error(this.backend.reason));
-  if(this.child)throw Error('Dictation is already listening.');
+  if(this.child||this.starting)throw Error('Dictation is already listening.');
   // The helper stops when this file appears, which lets it finalise the phrase being
   // spoken. Killing it would drop that phrase, which is usually the one that matters.
   const stopFile=this.stopFile=path.join(os.tmpdir(),`hush-dictation-${crypto.randomUUID()}.stop`);
-  return new Promise((resolve,reject)=>{
+  this.starting=true;
+  return (async()=>{
    let launch;
-   try{launch=this.backend.command(stopFile);}catch(e){return reject(e);}
+   try{launch=await this.backend.command(stopFile);}catch(e){this.starting=false;try{fs.unlinkSync(stopFile);}catch{}throw e;}
+   this.starting=false;
+   if(fs.existsSync(stopFile)){fs.unlinkSync(stopFile);launch.cleanup?.();return '';}
+   return new Promise((resolve,reject)=>{
    const child=this.child=spawn(launch.command,launch.args,
     {windowsHide:true,stdio:['ignore','pipe','pipe'],...launch.options});
    let output='',failure='';
@@ -59,20 +63,23 @@ class Dictation {
     try{launch.cleanup?.();}catch{}
    };
    child.on('error',error=>{finish();reject(error);});
-   child.on('close',()=>{
+   child.on('close',(code,signal)=>{
     finish();
     try{
      const rows=output.trim().split(/\r?\n/).filter(Boolean).map(line=>JSON.parse(line));
      if(failure&&!rows.length)throw Error(failure);
+     if((code!==0||signal)&&!rows.some(row=>row.type==='text'||row.type==='error'))
+      throw Error('Dictation stopped before producing a transcript. Check microphone and speech permissions, then try again.');
      resolve(transcriptFrom(rows));
     }catch(e){reject(e);}
    });
-  });
+   });
+  })();
  }
 
  stop(){
   const child=this.child;
-  if(!child)return;
+  if(!child){if(this.starting)fs.writeFileSync(this.stopFile,'');return;}
   // Ask first, and only insist if the helper does not wind up on its own.
   try{fs.writeFileSync(this.stopFile,'');}catch{child.kill();return;}
   clearTimeout(this.giveUp);

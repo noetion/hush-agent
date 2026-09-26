@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>dev.hush.agent.dictation</string>
+  <key>CFBundleName</key><string>Hush Dictation</string>
+  <key>NSMicrophoneUsageDescription</key><string>Hush uses the microphone when you start dictation and stops when you press Stop, to turn speech into a draft reply.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Hush uses on-device speech recognition to turn dictation into a draft reply. Audio is not sent to a speech service.</string>
+</dict></plist>

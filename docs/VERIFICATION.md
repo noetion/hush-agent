@@ -1,31 +1,42 @@
-# What is verified, and what is not
+# Verification and limits
 
-Hush makes some specific claims. This says which of them have been checked, how, and which have not — so you can judge the rest of the documentation by it.
+This file records what has been exercised and what remains unverified. A successful build is not evidence of every provider or permission journey.
 
-The blow-by-blow record of every release lives in this file's git history rather than here.
+## Automated checks
 
-## Checked automatically, on every pull request and merge
+The workflow in `.github/workflows/ci.yml` runs on Windows, Linux, macOS ARM64 and macOS Intel. It checks:
 
-On Windows, macOS and Linux:
+- The unit suite, including session isolation, delivery failures, approval decisions, history, attachments, dictation protocol and shell quoting.
+- The real app through `npm start`, using isolated data. The self-test covers minimize/restore, silent cues, quiet mode, fixture replies and approvals, model selection, draft retention, idle fade/collapse, error visibility and platform-correct shortcut labels.
+- A package build and a two-way channel exchange from inside its archive.
+- On macOS, the helper's two architecture slices, macOS 13 deployment targets, embedded permission descriptions and signature, both before and after packaging. The ARM64 job also requires SpeechAnalyzer to be compiled in.
 
-- **70 unit tests**, including the shell quoting used for the macOS terminal handoff, which is verified by asking a real shell what nineteen hostile values expand to rather than by comparing against expected output.
-- **The real application**, booted and driven through its own windows: no visible idle window, a cue that is visible but never focused or focusable, quiet mode suppressing it, replies and approvals, the two-stage recede, dwell-to-wake, and both error paths reaching the user.
-- **A package build**, which is where an icon in a format the target cannot read, or a runtime file that does not survive being put in an asar, shows up.
-- **The channel from that packaged build**, reading `bin/channel.cjs` out of `app.asar` with the packaged binary behaving as Node.
+The self-test reports any pointer-placement claims it cannot establish. Screenshots are captured as evidence but are not visual assertions. Provider and microphone tests need a signed-in or interactive machine and are not implied by this workflow.
 
-The macOS dictation helper is compiled against the real macOS SDK and then run, because compiling alone would not prove the newer recogniser was included rather than quietly excluded by the version guard around it.
+## Local macOS checks, 26 September 2026
 
-## Checked by hand
+On Apple Silicon with macOS 27.0 and Node 24.21.0:
 
-- **Providers, live**: Codex and Claude Code returned `HUSH_CONNECTED`; Cursor discovered existing ACP conversations and replied on `gpt-5.6-luna`.
-- **Windows dictation**, against real synthesised speech: a two-sentence recording comes back whole.
-- **Idle cost**: zero CPU seconds across a ten second window, 386 MB across five processes.
-- **A cold clone**: `git clone`, `npm ci`, boot, and the full self-test passing.
+- The unit suite passed: 71 passed, no failures, one Windows-only skip.
+- `npm start` and its real-app self-test passed with an isolated profile. The inspected normal and compact layouts remained readable without overflow; Command shortcut labels matched macOS.
+- An unsigned nested Electron helper was reproduced locally. The launcher repaired the bundle, its recursive signature check passed, and a native source self-test passed outside macOS's protected Documents folder. The README now recommends an unrestricted checkout location.
+- The universal speech helper compiled. Both architecture slices declare macOS 13.0 as their minimum version, and its permission descriptions and ad-hoc signature passed inspection.
+- SpeechAnalyzer transcribed a generated recording containing two sentences, including “keyboard navigation” and “tests again”, through the source app's dictation path.
+- The legacy recognizer's failure path returned an explicit “Siri and Dictation are disabled” error on this machine. Legacy transcription accuracy has **not** been established with Dictation enabled.
+- The updated ARM64 package built, and its universal helper passed the same binary checks.
+- A two-way channel exchange passed inside the updated package.
+- A live Codex conversation started without a project folder, appeared in Tasks, resumed with its history and retained context on the next reply.
 
-## Not verified
+The initial repository audit also exercised live Codex and Claude Code new-session replies on this Mac. Both returned `HUSH_CONNECTED`. It verified the packaged app self-test. Those tests do not establish replies to currently desktop-owned tasks, every tool permission, or image delivery through every provider.
 
-- **Nobody has used Hush on a Mac or a Linux desktop.** Continuous integration proves it builds, boots, drives its own windows and packages there. It does not prove it feels right.
-- **Nobody has spoken into the macOS or Linux dictation.** Accuracy, the permission prompts, and what happens when Dictation is off in System Settings are all unknown.
-- **Herdr has not been re-checked recently**, because no `herdr` binary exists on the machine this was built on. It completed a live round trip when it was written.
-- **Sustained real use**, multiple monitors, mixed DPI, and exclusive-fullscreen games are untested.
-- The packaged builds are **unsigned**.
+## Earlier evidence
+
+Earlier checks on Windows exercised live Codex and Claude Code replies, Cursor CLI conversations, synthesized-speech dictation, a cold installation and idle resource usage. These historical observations are retained as context; they are not measurements of the current build on every platform.
+
+## Remaining limits
+
+- Microphone recognition quality, permission denial/retry, long dictation and speech cut off during Stop need interactive use on supported Macs. Generated-recording recognition does not establish microphone accuracy.
+- macOS 13 and 14 runtime behaviour has not been exercised locally. Targeting macOS 13 establishes the binary deployment target, not a complete oldest-OS compatibility test.
+- Cursor and Herdr live integrations were not available on the local Mac.
+- Sustained daily use, monitor disconnects, mixed DPI, Spaces, exclusive fullscreen and VoiceOver have not been comprehensively tested.
+- Local package builds are unsigned development artifacts. The public installation path for this launch is the source repository.
